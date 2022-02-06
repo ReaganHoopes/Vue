@@ -1,0 +1,194 @@
+<html lang="en">
+	<head>
+		<script src="https://unpkg.com/vue@next"></script>
+		<title>Vue.js TODO list</title>
+		<meta charset="utf-8" />
+		<style>
+			 @import 'style.css';
+		</style>
+	</head>
+<body>
+    <script src="script.js"> </script>
+    <div id="weather-app">
+        <div id = "main">
+            <h1>Vue.JS Weather App</h1>
+        </div>
+
+        <div id = "location">
+            <h2>Your Location</h2>
+            <p id = "locationString">{{location}}</p>
+        </div>
+
+        <div id="conditions">
+            <h2>Current Conditions</h2>
+            <p id = "conditionMessage">{{conditionMessage}}</p>
+            <ul>
+                <li v-for="condition in conditions">{{condition.string}} </li>
+            </ul>
+        </div>
+
+        <div id="forecast">
+            <h2>5 day 3-hour forecast</h2>
+            <p>{{forecastMessage}}</p>
+
+            <div v-if="days !== undefined">
+                <span style="color:red">{{stateCounts[2]}} unlikely </span>
+                <span style="color:gray">{{stateCounts[0]}} neutral </span>
+                <span style="color:green">{{stateCounts[1]}} likely</span>
+                <div v-for="day in days":class="{'gray': states[day.idx]=='neutral', 'green': states[day.idx]=='likely', 'red': states[day.idx]=='unlikely'}"
+                     @click="toggle(day, $event)">
+
+                    <h2>Conditions for {{day.dt_txt}}</h2>
+                        <ul>
+                            <li>Temperature {{day.main.temp}}F</li>
+                            <li>{{day.weather[0].description}}</li>
+                            <li>{{day.main.humidity}}% humidity</li>
+                            <li>{{day.main.pressure}}hPa</li>
+                        </ul>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+
+    <script>
+        const app = Vue.createApp({
+            data() {
+                return {
+                    conditionMessage: "Loading...",
+                    location: "Loading...",
+                    conditions: undefined,
+                    forecastMessage: "Loading...",
+                    days:undefined,
+                    states:undefined,
+                    stateCounts:undefined,
+                }
+            },
+            methods: {
+                toggle(day, ev) {
+                    let i = ev.target;
+                    let item = day;
+                     if(this.states[item.idx]== "neutral"){
+                         this.states[item.idx] = "likely";
+                        this.stateCounts[0] = this.stateCounts[0]-1;
+                        this.stateCounts[1] = this.stateCounts[1]+1;
+                     }
+                    else if(this.states[item.idx]== "likely"){
+                         this.states[item.idx] = "unlikely";
+                        this.stateCounts[1] = this.stateCounts[1]-1;
+                        this.stateCounts[2] = this.stateCounts[2]+1;
+                    }
+                    else{
+                         this.states[item.idx] = "neutral";
+                        this.stateCounts[2] = this.stateCounts[2]-1;
+                        this.stateCounts[0] = this.stateCounts[0]+1;
+                    }
+                 },
+                 getConditions(lat, lon){
+                    conditionsUrl = "http://api.openweathermap.org/data/2.5/weather?lat=" + lat + "&lon=" + lon + "&appid=0c14cf95caf1863423c25361ed2dd7b4&units=imperial"
+                    fetch(conditionsUrl)
+                        .then(response => {
+                            return response.json()
+                        })
+                        .then(json => {
+                            if (json.hasOwnProperty('error')) {
+                                this.conditionMessage = "Connection Failed, Please Refresh and Try Again";
+                                this.forecastMessage = "";
+                            }
+                            else {
+                                currTemp = json['main']['temp'];
+                                highTemp = json['main']['temp_max'];
+                                lowTemp = json['main']['temp_min'];
+                                skyConditions = json['weather'][0]['main'];
+                                humidity = json['main']['humidity'];
+                                pressure = json['main']['pressure'];
+
+                                this.conditions = [
+                                    {string: "Currently " + currTemp + "F" },
+                                    {string: "High " + highTemp + "F" },
+                                    {string: "Low " + lowTemp + "F"},
+                                    {string: skyConditions },
+                                    {string: humidity + "% humidity"},
+                                    {string: pressure + "hPa pressure"},
+                                ]
+                                this.conditionMessage = "Current weather conditions @ " + this.getDateTimeString(new Date());
+                                this.getForecast(lat, lon);
+                            }
+                        })
+                        .catch(err => {
+                            this.conditionMessage = "Connection Failed, Please Refresh and Try Again";
+                            this.forecastMessage = "";
+                        })
+                        .finally(() => {
+                        });
+                },
+                getDateTimeString(date) {
+                    var today = date.toString().split(" ").splice(0,5);
+                    return today.join(" ") + " ";
+                },
+                getForecast(lat, lon){
+                    forecastUrl = "http://api.openweathermap.org/data/2.5/forecast?lat=" + lat + "&lon=" + lon + "&appid=0c14cf95caf1863423c25361ed2dd7b4&units=imperial"
+                    fetch(forecastUrl)
+                        .then(response => {
+                            return response.json()
+                        })
+                        .then(json => {
+                            if (json.hasOwnProperty('error')) {
+                                return this.forecastMessage = "Connection Failed, Please Refresh and Try Again";
+                            }
+                            else {
+                                this.forecastMessage = "";
+                                this.states = new Array(40).fill('neutral');
+                                this.stateCounts=[40, 0, 0]
+                                this.days = [];
+                                for(var i = 0; i<40; i++){
+                                       this.days.push(json.list[i]);
+                                       this.days[i].idx = i;
+                                }
+                            }
+
+                        })
+                        .catch(err => {
+                            return this.forecastMessage = "Connection Failed, Please Refresh and Try Again";
+                        })
+                        .finally(() => {
+                        });
+                },
+            },
+            created(){
+                geoUrl = 'https://api.freegeoip.app/json/?apikey=4bea3750-53f8-11ec-8769-a7afeba52efb'
+                  fetch(geoUrl)
+                    .then(response => {
+                        return response.json()
+                    })
+                    .then(json => {
+                        if (json.hasOwnProperty('error')) {
+                            this.location = "Connection Failed, Please Refresh and Try Again";
+                            this.conditionMessage = "";
+                            this.forecastMessage = "";
+                        }
+                        else {
+                            lat = json['latitude'];
+                            lon = json['longitude'];
+                            region = json['region_name'];
+                            city = json['city'];
+                            country = json['country_name'];
+                            var locationString = "You are located in " + city + ", " + region + ", " + country + " at coordinates (" + lat + "," + lon + ")";
+                            this.location = locationString;
+                            this.getConditions(lat, lon);
+                        }
+                    })
+                    .catch(err => {
+                        this.location = "Connection Failed, Please Refresh and Try Again";
+                        this.conditionMessage = "";
+                        this.forecastMessage = "";
+                    })
+                    .finally(() => {
+                    });
+            },
+        });
+        const vm = app.mount('#weather-app');
+    </script>
+</body>
+</html>
